@@ -217,8 +217,15 @@ export class TelegramController {
    */
   @Post("webhook")
   async handleWebhook(@Body() update: any) {
-    // console.log('[Telegram Webhook] Received update:', JSON.stringify(update));
-    return this.telegramService.handleUpdate(update);
+    console.log('[Telegram Webhook] Received update:', JSON.stringify(update).substring(0, 500));
+    try {
+      const result = await this.telegramService.handleUpdate(update);
+      console.log('[Telegram Webhook] Processed successfully');
+      return result;
+    } catch (e) {
+      console.error('[Telegram Webhook] Error processing update:', e.message);
+      return { ok: true }; // Always return ok to Telegram so it doesn't retry
+    }
   }
 
   /**
@@ -231,5 +238,30 @@ export class TelegramController {
       return { error: "غير مصرح لك بإجراء هذا التعديل", statusCode: 403 };
     }
     return this.telegramService.setupWebhook(url);
+  }
+
+  /**
+   * Force switch to polling mode (deletes webhook)
+   * Useful when webhook URL is stale/broken
+   */
+  @Post("force-polling")
+  @UseGuards(JwtAuthGuard)
+  async forcePolling(@Request() req) {
+    if (getUserRoleName(req.user) !== "Super Admin") {
+      return { error: "غير مصرح لك بإجراء هذا التعديل", statusCode: 403 };
+    }
+    return this.telegramService.forcePolling();
+  }
+
+  /**
+   * Get diagnostic info about Telegram integration state (Super Admin only)
+   */
+  @Get("diagnostics")
+  @UseGuards(JwtAuthGuard)
+  async getDiagnostics(@Request() req) {
+    if (getUserRoleName(req.user) !== "Super Admin") {
+      return { error: "غير مصرح لك بالوصول لهذه المعلومات", statusCode: 403 };
+    }
+    return this.telegramService.getDiagnostics();
   }
 }

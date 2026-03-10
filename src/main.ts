@@ -5,6 +5,9 @@ import { AllExceptionsFilter } from "./common/filters/http-exception.filter";
 import { SanitizePipe } from "./common/pipes/sanitize.pipe";
 import helmet from "helmet";
 
+// Set global timezone to Riyadh (UTC+3)
+process.env.TZ = "Asia/Riyadh";
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 

@@ -16,6 +16,12 @@ async function seedDatabase() {
     await client.connect();
     console.log('✅ Connected to database');
 
+    
+    // Hash password for admin user
+    const hashedPassword = await bcrypt.hash('u3sDf@3jsf', 10);
+    console.log('✅ Password hashed for Super Admin', hashedPassword);
+    console.log(hashedPassword)
+
     // Check if roles exist
     const rolesCheck = await client.query('SELECT COUNT(*) FROM roles');
     if (parseInt(rolesCheck.rows[0].count) > 0) {
@@ -41,7 +47,8 @@ async function seedDatabase() {
     const superAdminRoleId = superAdminRole.rows[0].role_id;
 
     // Hash password for admin user
-    const hashedPassword = await bcrypt.hash('123456', 10);
+    // const hashedPassword = await bcrypt.hash('123456', 10);
+    // console.log('✅ Password hashed for Super Admin', hashedPassword);
 
     // Insert Super Admin user
     console.log('\n👤 Creating Super Admin user...');

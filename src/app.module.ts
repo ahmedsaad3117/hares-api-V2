@@ -47,6 +47,7 @@ import { TelegramModule } from "./modules/telegram/telegram.module";
       extra: {
         max: 10,
         connectionTimeoutMillis: 5000,
+        options: "-c timezone=Asia/Riyadh",
       },
     }),
     // Cache Module (Global)

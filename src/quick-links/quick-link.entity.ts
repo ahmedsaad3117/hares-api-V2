@@ -14,7 +14,7 @@ export class QuickLink {
   @Column({ length: 100 })
   name: string;
 
-  @Column({ length: 500 })
+  @Column({ type: 'text', nullable: true, default: '' })
   url: string;
 
   @Column({ default: true })

@@ -2,6 +2,7 @@ import {
   IsString,
   IsNotEmpty,
   IsOptional,
+  IsBoolean,
   Length,
   IsInt,
 } from "class-validator";
@@ -23,6 +24,10 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 
   @IsOptional()
   isVisibleToBranches?: boolean;

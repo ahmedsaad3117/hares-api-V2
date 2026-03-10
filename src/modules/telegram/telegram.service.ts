@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { TelegramSettings } from "../../entities/telegram-settings.entity";
+import { User } from "../../entities/user.entity";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { UsersService } from "../users/users.service";
 
@@ -108,9 +109,33 @@ export class TelegramService implements OnModuleInit {
       );
       const info = await infoRes.json();
       if (info.ok && info.result.url) {
-        console.log("[Telegram] Webhook is active:", info.result.url);
-        this.isWebhookActive = true;
-        return; // Don't poll if webhook is already active
+        // Validate the webhook is actually working
+        const pendingCount = info.result.pending_update_count || 0;
+        const lastErrorDate = info.result.last_error_date;
+        const lastErrorMessage = info.result.last_error_message;
+
+        // If webhook has recent errors or many pending updates, it's likely broken
+        const now = Math.floor(Date.now() / 1000);
+        const errorIsRecent = lastErrorDate && (now - lastErrorDate) < 300; // Error in last 5 minutes
+
+        if (errorIsRecent || pendingCount > 5) {
+          console.warn(
+            `[Telegram] Webhook appears broken (pending=${pendingCount}, lastError="${lastErrorMessage}"). Removing webhook and switching to polling...`,
+          );
+          // Delete the broken webhook so we can poll instead
+          try {
+            await fetch(
+              `https://api.telegram.org/bot${settings.botToken}/deleteWebhook`,
+            );
+            console.log("[Telegram] Broken webhook removed successfully.");
+          } catch (delErr) {
+            console.error("[Telegram] Failed to delete broken webhook:", delErr.message);
+          }
+        } else {
+          console.log("[Telegram] Webhook is active:", info.result.url);
+          this.isWebhookActive = true;
+          return; // Don't poll if webhook is healthy
+        }
       }
     } catch (e) {
       console.error("[Telegram] Failed to check webhook status");
@@ -154,6 +179,7 @@ export class TelegramService implements OnModuleInit {
    * Process incoming Telegram updates (Used by both Webhook and Polling)
    */
   async handleUpdate(update: any) {
+    console.log(`[Telegram] handleUpdate called. Has callback_query: ${!!update?.callback_query}, update_id: ${update?.update_id}`);
     if (update.callback_query) {
       return await this.handleCallbackQuery(update.callback_query);
     }
@@ -162,8 +188,12 @@ export class TelegramService implements OnModuleInit {
 
   private async handleCallbackQuery(callback: any) {
     const { id, data, message, from } = callback;
+    console.log(`[Telegram] handleCallbackQuery: data="${data}", from=${from?.first_name}, callback_id=${id}`);
     const settings = await this.getSettings();
-    if (!settings || !settings.botToken) return;
+    if (!settings || !settings.botToken) {
+      console.error("[Telegram] handleCallbackQuery: No settings or bot token found!");
+      return;
+    }
 
     if (data.startsWith("approve_") || data.startsWith("reject_")) {
       const action = data.split("_")[0];
@@ -182,9 +212,42 @@ export class TelegramService implements OnModuleInit {
         },
       );
 
-      // Process System Action
-      const admin = await this.usersService.findByEmail("admin@q1key.com");
-      if (!admin) return;
+      // Process System Action - find Super Admin dynamically
+      let admin = await this.usersService.findByEmail("admin@q1key.com");
+      if (!admin) {
+        // Fallback: find any Super Admin user (roleId 1)
+        console.warn("[Telegram] admin@q1key.com not found, searching for any Super Admin...");
+        try {
+          admin = await this.telegramSettingsRepo.manager.findOne(User, {
+            where: { roleId: 1 },
+            relations: ["role", "institution", "branch"],
+          });
+        } catch (e) {
+          console.error("[Telegram] Failed to find Super Admin:", e.message);
+        }
+      }
+
+      if (!admin) {
+        console.error("[Telegram] No Super Admin found! Cannot process request from Telegram.");
+        // Update Telegram message to show failure
+        await fetch(
+          `https://api.telegram.org/bot${settings.botToken}/editMessageText`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: message.chat.id,
+              message_id: message.message_id,
+              text:
+                message.text +
+                `\n\n<b>⚠️ خطأ: لم يتم العثور على مسؤول النظام</b>`,
+              parse_mode: "HTML",
+              reply_markup: { inline_keyboard: [] },
+            }),
+          },
+        );
+        return;
+      }
 
       try {
         await this.subscriptionsService.processRequest(
@@ -217,6 +280,24 @@ export class TelegramService implements OnModuleInit {
         );
       } catch (e) {
         console.error("[Telegram] Process Error:", e.message);
+        // Update Telegram message to show the error
+        const errorMsg = e.message || "خطأ غير معروف";
+        await fetch(
+          `https://api.telegram.org/bot${settings.botToken}/editMessageText`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: message.chat.id,
+              message_id: message.message_id,
+              text:
+                message.text +
+                `\n\n<b>⚠️ فشل التنفيذ:</b> ${errorMsg}`,
+              parse_mode: "HTML",
+              reply_markup: { inline_keyboard: [] },
+            }),
+          },
+        );
       }
     }
   }
@@ -411,6 +492,93 @@ export class TelegramService implements OnModuleInit {
     return {
       success: res.success,
       message: res.success ? "تم بنجاح" : res.error || "فشل",
+    };
+  }
+
+  /**
+   * Force delete webhook and restart polling
+   * Useful when webhook URL is stale/broken
+   */
+  async forcePolling(): Promise<{ success: boolean; message: string }> {
+    const settings = await this.getSettings();
+    if (!settings || !settings.botToken) {
+      throw new HttpException("Bot token required", 400);
+    }
+
+    try {
+      // Delete any existing webhook
+      const res = await fetch(
+        `https://api.telegram.org/bot${settings.botToken}/deleteWebhook`,
+      );
+      const data = await res.json();
+      console.log("[Telegram] deleteWebhook result:", data);
+
+      // Reset state and start polling
+      this.isWebhookActive = false;
+      this.isPolling = false;
+      await this.startIntelligentPolling();
+
+      return {
+        success: true,
+        message: "تم حذف الـ Webhook وتشغيل الاستقصاء (Polling) بنجاح",
+      };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  }
+
+  /**
+   * Get diagnostic info about webhook/polling state
+   */
+  async getDiagnostics(): Promise<any> {
+    const settings = await this.getSettings();
+    if (!settings || !settings.botToken) {
+      return { error: "No bot token configured" };
+    }
+
+    let webhookInfo: any = null;
+    try {
+      const res = await fetch(
+        `https://api.telegram.org/bot${settings.botToken}/getWebhookInfo`,
+      );
+      webhookInfo = await res.json();
+    } catch (e) {
+      webhookInfo = { error: e.message };
+    }
+
+    // Check admin user existence
+    let adminExists = false;
+    let adminEmail: string | null = null;
+    try {
+      const admin = await this.usersService.findByEmail("admin@q1key.com");
+      if (admin) {
+        adminExists = true;
+        adminEmail = "admin@q1key.com";
+      } else {
+        const fallback = await this.telegramSettingsRepo.manager.findOne(User, {
+          where: { roleId: 1 },
+        });
+        adminExists = !!fallback;
+        adminEmail = fallback?.email || null;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    return {
+      isPolling: this.isPolling,
+      isWebhookActive: this.isWebhookActive,
+      lastUpdateId: this.lastUpdateId,
+      webhookInfo: webhookInfo?.result || webhookInfo,
+      adminUser: { exists: adminExists, email: adminEmail },
+      settings: {
+        isEnabled: settings.isEnabled,
+        hasBotToken: !!settings.botToken,
+        hasChatId: !!settings.chatId,
+        allowActionButtons: settings.allowActionButtons,
+        notifyNewRequests: settings.notifyNewRequests,
+        notifyRenewals: settings.notifyRenewals,
+      },
     };
   }
 }
