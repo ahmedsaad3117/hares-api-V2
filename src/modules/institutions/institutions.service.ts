@@ -110,6 +110,30 @@ export class InstitutionsService {
       }
     }
 
+    // Check if admin phone number is already taken in the system
+    if (createInstitutionDto.adminPhoneNumber) {
+      const existingPhone = await this.usersRepository.findOne({
+        where: { phoneNumber: createInstitutionDto.adminPhoneNumber.trim() },
+      });
+      if (existingPhone) {
+        throw new BadRequestException(
+          "رقم هاتف مدير المؤسسة مسجل مسبقاً في النظام",
+        );
+      }
+    }
+
+    // Check if admin national ID is already taken in the system
+    if (createInstitutionDto.adminNationalId) {
+      const existingNationalId = await this.usersRepository.findOne({
+        where: { nationalId: createInstitutionDto.adminNationalId.trim() },
+      });
+      if (existingNationalId) {
+        throw new BadRequestException(
+          "رقم الهوية لمدير المؤسسة مسجل مسبقاً في النظام",
+        );
+      }
+    }
+
     // Validate Plan if provided
     let plan: SubscriptionPlan | null = null;
     if (planId) {

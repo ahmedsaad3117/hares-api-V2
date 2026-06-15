@@ -52,6 +52,17 @@ export class UsersService {
       }
     }
 
+    // Check if national ID already exists
+    if (createUserDto.nationalId) {
+      const existingNationalId = await this.usersRepository.findOne({
+        where: { nationalId: createUserDto.nationalId },
+      });
+
+      if (existingNationalId) {
+        throw new ConflictException("National ID already exists");
+      }
+    }
+
     // Check institution capacity if adding to an institution
     if (createUserDto.institutionId) {
       const institution = await this.institutionRepository.findOne({

@@ -87,6 +87,30 @@ export class BranchesService {
       }
     }
 
+    // Check if manager phone number is already taken in the system
+    if (branchData.userPhoneNumber) {
+      const existingPhone = await this.usersRepository.findOne({
+        where: { phoneNumber: branchData.userPhoneNumber.trim() },
+      });
+      if (existingPhone) {
+        throw new BadRequestException(
+          "رقم هاتف مدير الفرع مسجل مسبقاً في النظام",
+        );
+      }
+    }
+
+    // Check if manager national ID is already taken in the system
+    if (branchData.userNationalId) {
+      const existingNationalId = await this.usersRepository.findOne({
+        where: { nationalId: branchData.userNationalId.trim() },
+      });
+      if (existingNationalId) {
+        throw new BadRequestException(
+          "رقم الهوية لمدير الفرع مسجل مسبقاً في النظام",
+        );
+      }
+    }
+
     // Check if there's already a pending request for this branch name/email in this institution
     const pendingRequest = await this.requestsRepository
       .createQueryBuilder("request")
