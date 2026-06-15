@@ -66,8 +66,9 @@ export class InstallmentsService {
       }
 
       // Add remainder to the last installment to ensure total matches principal
-      const amount =
-        i === loan.paymentPlanMonths ? baseAmount + remainder : baseAmount;
+      const amount = Math.ceil(
+        i === loan.paymentPlanMonths ? baseAmount + remainder : baseAmount,
+      );
 
       const installment = repo.create({
         loanId: loan.loanId,
