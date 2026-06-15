@@ -273,6 +273,16 @@ export class UsersService {
       }
     }
 
+    // Check if new email is already taken by another user
+    if (updateUserDto.email && updateUserDto.email !== user.email) {
+      const existingEmail = await this.usersRepository.findOne({
+        where: { email: updateUserDto.email },
+      });
+      if (existingEmail) {
+        throw new ConflictException("Email already exists");
+      }
+    }
+
     // Security: Prevent Super Admins from changing other Super Admin passwords
     if (updateUserDto.password) {
       if (currentUser) {
