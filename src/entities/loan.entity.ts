@@ -22,6 +22,7 @@ export enum LoanStatus {
   PAID = "Paid",
   LATE = "Late",
   FINISHED = "Finished",
+  DELETED = "Deleted",
 }
 
 @Entity("loans")

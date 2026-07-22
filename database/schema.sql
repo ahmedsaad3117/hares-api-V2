@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS loans (
     FOREIGN KEY (institution_id) REFERENCES institutions(institution_id),
     FOREIGN KEY (product_id) REFERENCES products(product_id),
     FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL,
-    CONSTRAINT chk_status CHECK (status IN ('Active', 'Paid', 'Late', 'Finished')),
+    CONSTRAINT chk_status CHECK (status IN ('Active', 'Paid', 'Late', 'Finished', 'Deleted')),
     CONSTRAINT chk_payment_plan_months CHECK (payment_plan_months >= 1 AND payment_plan_months <= 12),
     CONSTRAINT chk_branch_or_institution CHECK (
         (branch_id IS NOT NULL AND institution_id IS NULL) OR 

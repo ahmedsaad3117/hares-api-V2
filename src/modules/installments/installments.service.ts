@@ -408,6 +408,10 @@ export class InstallmentsService {
     const loan = await this.loansRepository.findOne({ where: { loanId } });
     if (!loan) return;
 
+    // A deleted loan is retained for customer history/audit purposes only.
+    // Never let installment synchronization reactivate it.
+    if (loan.status === LoanStatus.DELETED) return;
+
     const allInstallments = await this.installmentsRepository.find({
       where: { loanId },
     });

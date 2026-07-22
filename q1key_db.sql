@@ -56,7 +56,8 @@ CREATE TYPE public.loans_status_enum AS ENUM (
     'Active',
     'Paid',
     'Late',
-    'Finished'
+    'Finished',
+    'Deleted'
 );
 
 

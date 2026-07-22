@@ -221,6 +221,11 @@ export class LoansService {
     if (paginationDto.status) {
       whereClauses.push(`l.status = $${paramIndex++}`);
       params.push(paginationDto.status);
+    } else {
+      // Deleted loans are audit/history records and should not reappear in the
+      // operational loan list unless explicitly requested by status.
+      whereClauses.push(`l.status <> $${paramIndex++}`);
+      params.push(LoanStatus.DELETED);
     }
 
     // Enforce Entity Independence based on role
@@ -361,6 +366,9 @@ export class LoansService {
       .leftJoinAndSelect("loan.product", "product")
       .leftJoinAndSelect("branch.institution", "branchInstitution")
       .where("loan.branchId = :branchId", { branchId })
+      .andWhere("loan.status != :deletedStatus", {
+        deletedStatus: LoanStatus.DELETED,
+      })
       .orderBy("loan.createdAt", "DESC");
 
     // Enforce Entity Independence based on role
@@ -429,6 +437,9 @@ export class LoansService {
       .leftJoinAndSelect("loan.institution", "loanInstitution")
       .leftJoinAndSelect("loan.product", "product")
       .leftJoinAndSelect("branch.institution", "branchInstitution")
+      .where("loan.status != :deletedStatus", {
+        deletedStatus: LoanStatus.DELETED,
+      })
       .orderBy("loan.createdAt", "DESC")
       .take(100); // Limit results for performance
 
@@ -543,6 +554,16 @@ export class LoansService {
 
     if (!loan) {
       throw new NotFoundException(`Loan with ID ${id} not found`);
+    }
+
+    if (loan.status === LoanStatus.DELETED) {
+      throw new BadRequestException("Deleted loans cannot be updated");
+    }
+
+    if (updateLoanDto.status === LoanStatus.DELETED) {
+      throw new BadRequestException(
+        "Use the delete loan action to mark a loan as deleted",
+      );
     }
 
     // Check permissions
@@ -688,6 +709,16 @@ export class LoansService {
       throw new NotFoundException(`Loan with ID ${id} not found`);
     }
 
+    if (loan.status === LoanStatus.DELETED) {
+      throw new BadRequestException("Deleted loans cannot be updated");
+    }
+
+    if (status === LoanStatus.DELETED) {
+      throw new BadRequestException(
+        "Use the delete loan action to mark a loan as deleted",
+      );
+    }
+
     loan.status = status;
     await this.loanRepository.save(loan);
     return this.findOne(id);
@@ -710,6 +741,10 @@ export class LoansService {
     const buildCountQuery = (status?: LoanStatus) => {
       const qb = this.loanRepository.createQueryBuilder("loan");
       if (status) qb.where("loan.status = :status", { status });
+      else
+        qb.where("loan.status != :deletedStatus", {
+          deletedStatus: LoanStatus.DELETED,
+        });
 
       if (user && roleName === "Institution" && user.institutionId) {
         qb.andWhere(
@@ -847,6 +882,10 @@ export class LoansService {
 
   async remove(id: number): Promise<void> {
     const loan = await this.findOne(id);
+    if (loan.status === LoanStatus.DELETED) {
+      throw new BadRequestException(`Loan with ID ${id} is already deleted`);
+    }
+
     const installmentIds = loan.installments?.map((i) => i.id) || [];
     const amount = parseFloat(loan.principalAmount.toString());
 
@@ -901,8 +940,13 @@ export class LoansService {
       // 5. Delete installments
       await manager.delete(Installment, { loanId: id });
 
-      // 6. Delete loan
-      await manager.delete(Loan, { loanId: id });
+      // 6. Keep the loan as an immutable customer-history record.
+      // Operational queries exclude this status, while findByCustomer keeps it.
+      await manager.update(
+        Loan,
+        { loanId: id },
+        { status: LoanStatus.DELETED },
+      );
     });
   }
 }
