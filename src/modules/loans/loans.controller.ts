@@ -113,6 +113,12 @@ export class LoansController {
     return this.installmentsService.findByLoan(+id);
   }
 
+  @Delete(":id/history")
+  @Roles("Super Admin")
+  removeFromCustomerHistory(@Param("id") id: string) {
+    return this.loansService.removeFromCustomerHistory(+id);
+  }
+
   @Delete(":id")
   @Roles("Super Admin", "Institution", "Branch")
   remove(@Param("id") id: string) {

@@ -949,4 +949,38 @@ export class LoansService {
       );
     });
   }
+
+  async removeFromCustomerHistory(id: number): Promise<{ message: string }> {
+    const loan = await this.loanRepository.findOne({
+      where: { loanId: id },
+      relations: ["installments"],
+    });
+
+    if (!loan) {
+      throw new NotFoundException(`Loan with ID ${id} not found`);
+    }
+
+    if (loan.status !== LoanStatus.DELETED) {
+      throw new BadRequestException(
+        "Only deleted loans can be removed from customer history",
+      );
+    }
+
+    const installmentIds =
+      loan.installments?.map((installment) => installment.id) || [];
+
+    await this.dataSource.transaction(async (manager) => {
+      if (installmentIds.length > 0) {
+        await manager.delete(CashBoxTransaction, {
+          installmentId: In(installmentIds),
+        });
+      }
+
+      await manager.delete(CashBoxTransaction, { loanId: id });
+      await manager.delete(Installment, { loanId: id });
+      await manager.delete(Loan, { loanId: id });
+    });
+
+    return { message: "Loan removed from customer history" };
+  }
 }
