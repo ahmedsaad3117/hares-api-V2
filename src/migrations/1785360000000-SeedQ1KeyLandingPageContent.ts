@@ -246,7 +246,7 @@ export class SeedQ1KeyLandingPageContent1785360000000
       [
         "لن تنسى أي قسط بعد اليوم، ووداعاً للتعثرات",
         "Never miss an installment again — say goodbye to defaults",
-        "منصة متخصصة لمتابعة البيع والأنشطة والأجل والتحصيل للمؤسسات والمنشآت الصغيرة بطريقة سهلة وذكية وآمنة وسرية عالية لمعلومات العملاء.",
+        "منصة متخصصة لمتابعة البيع والأنشطة والآجل والتحصيل للمؤسسات والمنشآت الصغيرة بطريقة سهلة وذكية وآمنة وسرية عالية لمعلومات العملاء.",
         "A specialized platform for tracking sales, activities, credit, and collections for institutions and small businesses — simple, smart, secure, and confidential.",
         "تسجيل الدخول",
         "Login",
@@ -259,7 +259,7 @@ export class SeedQ1KeyLandingPageContent1785360000000
         "Subscription Plans",
         "من نحن",
         "About Q1KEY",
-        "Q1KEY منصة تساعدك على إدارة الأنشطة والتحصيل ومنع التعثرات بكل يسر وسهولة.",
+        "Q1KEY منصة تساعدك على إدارة الأنشطة التجارية والتحصيل ومنع التعثرات بكل يسر وسهولة.",
         "Q1KEY helps you manage activities, collections, and prevent defaults with clarity and ease.",
         "تواصل معنا",
         "Contact Us",
