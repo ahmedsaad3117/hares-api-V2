@@ -1078,9 +1078,14 @@ export class ReportsService {
                 WHERE ${loanWhere} ${instFilter} ${dateFilter}
             ),
             by_status AS (
-                SELECT status, COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount
+                -- Treat unpaid, past-due installments as Overdue so the dashboard
+                -- count reflects reality even before the batch job flips the status.
+                SELECT
+                    CASE WHEN status = 'Pending' AND due_date < CURRENT_DATE THEN 'Overdue' ELSE status END as status,
+                    COUNT(*) as count,
+                    COALESCE(SUM(amount), 0) as total_amount
                 FROM filtered_installments
-                GROUP BY status
+                GROUP BY CASE WHEN status = 'Pending' AND due_date < CURRENT_DATE THEN 'Overdue' ELSE status END
             ),
             totals AS (
                 SELECT 
@@ -1092,8 +1097,10 @@ export class ReportsService {
                 FROM filtered_installments
             ),
             details AS (
-                SELECT 
-                    fi.id as installment_id, fi.installment_number, fi.amount, fi.status, fi.due_date, fi.payment_date,
+                SELECT
+                    fi.id as installment_id, fi.installment_number, fi.amount,
+                    CASE WHEN fi.status = 'Pending' AND fi.due_date < CURRENT_DATE THEN 'Overdue' ELSE fi.status END as status,
+                    fi.due_date, fi.payment_date,
                     fi.loan_id, fi.loan_amount, fi.customer_id, fi.branch_id, fi.institution_id,
                     c.name as customer_name, c.phone_number as customer_phone,
                     b.name as branch_name, 

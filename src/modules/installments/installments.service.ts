@@ -283,7 +283,12 @@ export class InstallmentsService {
           i.installment_number as "installmentNumber",
           i.due_date as "dueDate",
           i.amount,
-          i.status,
+          -- Effective status: an unpaid installment past its due date is Overdue,
+          -- even if the stored status has not yet been flipped by the batch job.
+          CASE
+            WHEN i.status = 'Pending' AND i.due_date < CURRENT_DATE THEN 'Overdue'
+            ELSE i.status
+          END as "status",
           i.payment_date as "paymentDate",
           json_build_object(
             'loanId', l.loan_id,
