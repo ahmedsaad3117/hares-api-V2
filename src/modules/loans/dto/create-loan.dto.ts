@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsDateString,
   Min,
-  Max,
   IsInt,
   ValidateIf,
 } from "class-validator";
@@ -42,7 +41,6 @@ export class CreateLoanDto {
 
   @IsInt()
   @Min(1)
-  @Max(12)
   @IsOptional()
   paymentPlanMonths?: number;
 }

@@ -15,7 +15,7 @@ import { Institution } from "./institution.entity";
 import { Product } from "./product.entity";
 import { User } from "./user.entity";
 import { Installment } from "./installment.entity";
-import { Min, Max } from "class-validator";
+import { Min } from "class-validator";
 
 export enum LoanStatus {
   ACTIVE = "Active",
@@ -73,7 +73,6 @@ export class Loan {
 
   @Column({ name: "payment_plan_months", type: "integer", default: 1 })
   @Min(1)
-  @Max(12)
   paymentPlanMonths: number;
 
   @Column({
